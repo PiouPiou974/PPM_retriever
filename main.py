@@ -1,6 +1,6 @@
 from PPMretriever import api
 
-folder_path = r'C:\Users\antoi\Energie Foncière\Energie Foncière - General\Externe\Clients\Vivant de Grotthuss\Ecolodges\SIG'
+folder_path = ''
 excel_file = rf'{folder_path}\PPM_parcelles_en_forets.xlsx'
 tab_name = 'Parcelles_en_foret'
 column = 'idu'
