@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel>=0.37.1", "setuptools-scm>=8.0"]
+requires = ["setuptools>=61.0", "wheel>=0.37.1", "setuptools-scm>=8.0", "pandas>=2", "numpy>=1.22.4", "openpyxl>=3"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -9,7 +9,7 @@ readme = "README.md"
 license = {file = "LICENSE"}
 requires-python = ">=3.0"
 authors = [{name = "Antoine PETIT", email = "antoine.petit@energie-fonciere.fr"}, ]
-dependencies = ["pandas>=2", "numpy>=1.22.4", "openpyxl>=3"]
+dependencies = []
 
 [tool.setuptools.package-data]
 PPMretriever = ["*.csv", "*.txt"]
