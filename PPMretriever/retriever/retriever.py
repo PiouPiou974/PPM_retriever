@@ -66,6 +66,9 @@ class PPM:
         :return: None
         """
 
+        if type(references) is str:
+            references = [references]
+
         assert all([len(ref) in [14, 5, 3, 2] for ref in references])
         dept_codes = get_dept_code_from_reference_code(references)
         unique_depts = list(set(dept_codes))
