@@ -1,7 +1,6 @@
 import copy
 import os.path
 from enum import EnumType
-
 import pandas as pd
 
 from PPMretriever.retriever.data_folder_handler import PPMDataFolderHandler

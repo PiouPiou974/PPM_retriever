@@ -19,14 +19,6 @@ class PPMDataFileHandler:
 
         self.df = pd.read_csv(self.filepath, sep=';', encoding='utf-8', dtype=object)
 
-        def value_or_000(s: str | float | None) -> str:
-            if pd.isna(s):
-                return '000'
-            s = str(s)
-            if s.strip() == '':
-                return '000'
-            return s
-
         # build department and insee fields, for research purposes
         self.df[RawField.DEPARTEMENT.value] = self.df[RawField.DEPARTEMENT.value].str.zfill(2)
         # take only the first 2 chars of department field to construct INSEE (useful for 97X depts)
@@ -35,12 +27,17 @@ class PPMDataFileHandler:
                 self.df[RawField.CODE_COMMUNE.value].str.zfill(3)
         )
 
+        def remove_spaces(s: str | None) -> str:
+            if pd.isna(s):
+                return ''
+            return s.replace(' ', '')
+
         # build idu
         self.df[Field.IDU.value] = (
                 self.df["INSEE"] +
-                self.df[RawField.COM_ABS.value].apply(value_or_000) +
-                self.df[RawField.SECTION.value].str.zfill(2) +
-                self.df[RawField.NUMERO.value].str.zfill(4)
+                self.df[RawField.COM_ABS.value].apply(remove_spaces).str.zfill(3) +
+                self.df[RawField.SECTION.value].apply(remove_spaces).str.zfill(2) +
+                self.df[RawField.NUMERO.value].apply(remove_spaces).str.zfill(4)
         )
 
         def remove_multiple_spaces(s: str) -> str:
