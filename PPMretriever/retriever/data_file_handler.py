@@ -1,58 +1,121 @@
 import os
-import numpy as np
 import pandas as pd
 
-from PPMretriever.retriever.config import WORK_WITH_SUF
 from PPMretriever.utils.group_code import group_code
 from PPMretriever.utils.droits_code import codes_droit
+from PPMretriever.utils.forme_juridique_code import formes_juridiques
+from PPMretriever.utils.column_names_raw_files import RawField
+from PPMretriever.utils.field_names import Field
 
 
 class PPMDataFileHandler:
+    filepath: str
     df: pd.DataFrame
 
     def __init__(self, filepath: str) -> None:
-        assert os.path.isfile(filepath)
-        assert os.path.splitext(filepath)[1] == '.txt'
+        self.filepath = filepath
+        assert os.path.isfile(self.filepath)
+        assert os.path.splitext(self.filepath)[1] in ['.txt', '.csv']
 
-        file_content_df = pd.read_csv(filepath, sep=';', encoding='latin-1', dtype='str')
+        self.df = pd.read_csv(self.filepath, sep=';', encoding='utf-8', dtype=object)
 
-        # build idu
-        com_abs = ['000' if p=='   ' else p for p in file_content_df['Préfixe (Références cadastrales)']]
-        file_content_df['IDU'] = (
-                file_content_df['Département (Champ géographique)'].str.zfill(2) +
-                file_content_df['Code Commune (Champ géographique)'].str.zfill(3) +
-                com_abs +
-                file_content_df['Section (Références cadastrales)'].str.zfill(2) +
-                file_content_df['N° plan (Références cadastrales)'].str.zfill(4)
+        def value_or_000(s: str | float | None) -> str:
+            if pd.isna(s):
+                return '000'
+            s = str(s)
+            if s.strip() == '':
+                return '000'
+            return s
+
+        # build department and insee fields, for research purposes
+        self.df[RawField.DEPARTEMENT.value] = self.df[RawField.DEPARTEMENT.value].str.zfill(2)
+        # take only the first 2 chars of department field to construct INSEE (useful for 97X depts)
+        self.df["INSEE"] = (
+                self.df[RawField.DEPARTEMENT.value].apply(lambda x : x[:2]) +
+                self.df[RawField.CODE_COMMUNE.value].str.zfill(3)
         )
 
-        # concatenate adress and remove trailing white spaces
-        temp_df = file_content_df.fillna('')
-        file_content_df['Adresse'] = (
-            temp_df['N° de voirie (Adresse parcelle)'] +
-            ' ' + temp_df['Nature voie (Adresse parcelle)'] +
-            ' ' + temp_df['Nom voie (Adresse parcelle)']
-        ).apply(lambda x: x.strip() if type(x) is str else np.nan)
+        # build idu
+        self.df[Field.IDU.value] = (
+                self.df["INSEE"] +
+                self.df[RawField.COM_ABS.value].apply(value_or_000) +
+                self.df[RawField.SECTION.value].str.zfill(2) +
+                self.df[RawField.NUMERO.value].str.zfill(4)
+        )
+
+        def remove_multiple_spaces(s: str) -> str:
+            return " ".join(s.split())
+
+        def to_str_with_spacing(s: str | None) -> str:
+            if pd.isna(s):
+                return ''
+            return f"{s} "
+
+        def to_str(s: str | None) -> str:
+            if pd.isna(s):
+                return ''
+            return f"{s}"
+
+        self.df[RawField.ADRESSE_NUM.value] = self.df[RawField.ADRESSE_NUM.value].apply(to_str_with_spacing)
+        self.df[RawField.ADRESSE_REP.value] = self.df[RawField.ADRESSE_REP.value].apply(to_str_with_spacing)
+        self.df[RawField.ADRESSE_TYPE_VOIE.value] = self.df[RawField.ADRESSE_TYPE_VOIE.value].apply(to_str_with_spacing)
+        self.df[RawField.ADRESSE_NUM.value] = self.df[RawField.ADRESSE_NUM.value].apply(to_str)
+
+        self.df[Field.ADRESSE.value] = self.df[[
+            RawField.ADRESSE_NUM.value,
+            RawField.ADRESSE_REP.value,
+            RawField.ADRESSE_TYPE_VOIE.value,
+            RawField.ADRESSE_NOM_VOIE.value
+        ]].agg(''.join, axis=1).apply(remove_multiple_spaces)
+
+        self.df[Field.CLASSEMENT_PPT.value] = self.df[RawField.GROUPE_CODE.value].apply(lambda x: group_code.get(x))
 
         rename_mapping = {
-            'SUF (Evaluation SUF)': 'SUF',
-            'Contenance (Caractéristiques parcelle)': 'Contenance',
-            'Code droit (Propriétaire(s) parcelle)': 'Droit_code',
-            'N° MAJIC (Propriétaire(s) parcelle)': 'MAJIC',
-            'N° SIREN (Propriétaire(s) parcelle)': 'SIREN',
-            'Groupe personne (Propriétaire(s) parcelle)': 'Groupe',
-            'Forme juridique (Propriétaire(s) parcelle)': 'Forme_juridique',
-            'Dénomination (Propriétaire(s) parcelle)': 'Denomination'
+            RawField.COMMUNE.value: Field.COMMUNE.value,
+            RawField.SUF.value: Field.SUF.value,
+            RawField.NAT_CAD.value: Field.NAT_CAD.value,
+            RawField.CONTENANCE.value: Field.CONTENANCE.value,
+            RawField.CODE_DROIT.value: Field.CODE_DROIT.value,
+            RawField.MAJIC.value: Field.MAJIC.value,
+            RawField.SIREN.value: Field.SIREN.value,
+            RawField.FORME_JUR_ABR.value: Field.FORME_JURIDIQUE_ABR.value,
+            RawField.DENOMINATION.value: Field.DENOMINATION.value,
         }
+        self.df = self.df.rename(columns=rename_mapping)
 
-        fields_to_keep = ['IDU', 'Adresse', 'Contenance', 'MAJIC', 'SIREN', 'Groupe', 'Droit_code', 'Forme_juridique', 'Denomination']
-        if WORK_WITH_SUF:
-            fields_to_keep.append('SUF')
-        self.df = file_content_df.rename(columns=rename_mapping)[fields_to_keep]
+        def get_first_char(s: str | None) -> str:
+            if pd.isna(s):
+                return s
+            return s[0]
 
-        self.df['Groupe'] = self.df['Groupe'].apply(lambda x: group_code.get(x))
-        self.df['Droit'] = self.df['Droit_code'].apply(lambda x: codes_droit.get(x))
-        pd.to_numeric(self.df['Contenance'], errors='coerce')
+        self.df[Field.CODE_DROIT.value] = self.df[Field.CODE_DROIT.value].apply(get_first_char)
+        self.df[Field.LBL_DROIT.value] = self.df[Field.CODE_DROIT.value].apply(lambda x: codes_droit.get(x))
+        self.df[Field.FORME_JURIDIQUE.value] = self.df[RawField.FORME_JURIDIQUE_CODE.value].apply(lambda x: formes_juridiques.get(x))
+        self.df[Field.CONTENANCE.value] = self.df[Field.CONTENANCE.value].astype(int)
 
-    def filter_by_plots(self, references: list[str]) -> pd.DataFrame:
-        return self.df[self.df['IDU'].isin(references)]
+    @property
+    def clean_table(self) -> pd.DataFrame:
+        fields_to_keep = [f.value for f in Field]
+        return self.df[fields_to_keep]
+
+
+    def filter_by_references(self, references: list[str]) -> pd.DataFrame:
+        return_df = pd.DataFrame(columns=[f.value for f in Field])
+
+        plot_references = [r for r in references if len(r) == 14]
+        if len(plot_references) != 0:
+            df_search = self.clean_table[self.df[Field.IDU.value].isin(plot_references)]
+            return_df = pd.concat([return_df, df_search])
+
+        municipality_references = [r for r in references if len(r) == 5]
+        if len(municipality_references) != 0:
+            df_search = self.clean_table[self.df["INSEE"].isin(municipality_references)]
+            return_df = pd.concat([return_df, df_search])
+
+        # overkill, because the entire file is supposed to be on the same department
+        dept_references = [r for r in references if len(r) <= 3]
+        if len(dept_references) != 0:
+            df_search = self.clean_table[self.df[RawField.DEPARTEMENT.value].isin(dept_references)]
+            return_df = pd.concat([return_df, df_search])
+
+        return return_df

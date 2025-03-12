@@ -1,64 +1,46 @@
 import os
-from xml.dom import NotFoundErr
 
-from PPMretriever.retriever.config import PPM_FOLDER_PATH
+from PPMretriever import PPM_FOLDER_PATH
 
 
 class PPMDataFolderHandler:
-    folder_01_to_61: str
-    folder_62_to_976: str
     incipit: str
     year: str
 
     def __init__(self) -> None:
-        # must be a folder path
+        # PPM_FOLDER_PATH must be a valid folder path
         assert os.path.isdir(PPM_FOLDER_PATH)
 
-        # folder must contain 2 subfolders starting with "Fichier des parcelles"
-        sub_folders = [p for p in os.listdir(PPM_FOLDER_PATH) if p.startswith('Fichier des parcelles')]
-        assert len(sub_folders) == 2
-
-        # try to find 2 specific sub folders
-        folder_name_01_to_61 = next(iter([f for f in sub_folders if f.endswith('01 à 61')]), None)
-        folder_name_62_to_976 = next(iter([f for f in sub_folders if f.endswith('62 à 976')]), None)
-
-        self.folder_01_to_61 = fr'{PPM_FOLDER_PATH}/{folder_name_01_to_61}'
-        self.folder_62_to_976 = fr'{PPM_FOLDER_PATH}/{folder_name_62_to_976}'
-
-        assert self.folder_01_to_61 is not None
-        assert self.folder_62_to_976 is not None
-
         # find incipit (eg: "PM_23_NB_")
-        first_file = next(iter(os.listdir(self.folder_01_to_61)))
+        first_file = next(iter(os.listdir(PPM_FOLDER_PATH)))
         pos = first_file.find('NB_')
         self.incipit = first_file[:pos+3]
         self.year = ''.join([c for c in self.incipit if c.isdigit()])
 
     def departmental_files(self, department_code: str) -> list[str]:
         # find specific sub folder, raise error if not found
+
+        # compute incipit of all files relative to this department. Ex : "PM_23_NB_2A0"
         if len(department_code) == 3:
             assert department_code in ['971', '972', '973', '974', '975', '976']
-            folder = self.folder_62_to_976
+            code_in_file_name = department_code
+        elif len(department_code) == 2:
+            code_in_file_name = f"{department_code}0"
+        elif len(department_code) == 1:
+            code_in_file_name = f"0{department_code}0"
         else:
-            assert len(department_code) == 2
-            if department_code.isdigit():
-                if int(department_code) < 62:
-                    folder = self.folder_01_to_61
-                else:
-                    folder = self.folder_62_to_976
-            else:
-                assert department_code in ['2A', '2B']
-                folder = self.folder_01_to_61
+            raise ValueError(department_code)
+        incipit_dept = f"{self.incipit}{code_in_file_name}"
 
         # find all files relevant to this department, raise error if not found
-        file_list_no_incipit = [
-            p.removeprefix(self.incipit)
-            for p in os.listdir(folder)
-            if p.removeprefix(self.incipit).startswith(department_code)
+        files = [
+            f
+            for f in os.listdir(PPM_FOLDER_PATH)
+            if f.startswith(incipit_dept)
         ]
 
-        if not file_list_no_incipit:
-            raise NotFoundErr(f'No files for dept code {department_code} in folder {folder}')
+        if not files:
+            raise FileNotFoundError(f'No files found for dept code {department_code} in folder {PPM_FOLDER_PATH}')
 
-        file_list = [fr'{folder}/{self.incipit}{f}' for f in file_list_no_incipit]
-        return file_list
+        filepaths = [fr'{PPM_FOLDER_PATH}/{f}' for f in files]
+        return filepaths
