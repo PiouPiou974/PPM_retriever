@@ -54,8 +54,9 @@ class PPM:
         :return: copy of the PPM object
         """
         new_ppm = copy.deepcopy(self)
-        right_columns = [f.value for f in right_fields()]
-        new_ppm.table = new_ppm.table.drop(columns=[Field.SUF.value]).drop_duplicates(subset=right_columns)
+        duplicates_to_delete = [f.value for f in right_fields()]
+        duplicates_to_delete.append(Field.IDU.value)
+        new_ppm.table = new_ppm.table.drop(columns=[Field.SUF.value]).drop_duplicates(subset=duplicates_to_delete)
         return new_ppm
 
     def fetch(self, references: str | list[str]) -> None:
