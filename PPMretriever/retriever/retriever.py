@@ -25,38 +25,58 @@ class PPM:
         """
         new_ppm = copy.deepcopy(self)
 
+        # fields to use ase index temporarily : IDU + SUF (if available)
         id_fields = [Field.IDU.value]
         if Field.SUF.value in new_ppm.table.columns:
             id_fields.append(Field.SUF.value)
 
-        fields_to_aggregate = [f.value for f in right_fields()]
-        repeated_fields = [f.value for f in plot_fields()]
+        # we want a table with a unique index. Start : create a new table with only the plot info
+        plot_columns = [f.value for f in plot_fields()]
+        new_ppm.table = new_ppm.table[plot_columns].drop_duplicates(ignore_index=True).set_index(id_fields)
 
-        new_ppm.table = new_ppm.table[repeated_fields].drop_duplicates(ignore_index=True).set_index(id_fields)
-        other = self.table.set_index(id_fields)
-
-        for column_name in fields_to_aggregate:
+        # aggregate rights and right holders
+        original_df = self.table.set_index(id_fields)
+        columns_to_aggregate = [f.value for f in right_fields()]
+        for column_name in columns_to_aggregate:
             new_ppm.table[column_name] = [
-                ', '.join(list(set(other.loc[[i], column_name].tolist())))
+                ', '.join(list(set(original_df.loc[[i], column_name].tolist())))
                 for i in new_ppm.table.index
             ]
 
+        # finally : drop index (keep IDU and SUF as column)
         new_ppm.table = new_ppm.table.reset_index()
-
         return new_ppm
 
     @property
     def merged_suf(self) -> 'PPM':
         """
-        Drops SUF and duplicates for the same IDU
-        (e.g. drop duplicates for the same right holder on different SUF).
-        May lost information : e.g. will take only first value from different NAT_CAD on several SUF
+        Merges SUF and drop duplicates for the same IDU (plot id). Duplicates are : same right, same right holder, and same plot.
+        Will aggregate plot information dependent on SUF : SUF, NAT_CAD, CONTENANCE_SUF
         :return: copy of the PPM object
         """
+        # create a new PPM object
         new_ppm = copy.deepcopy(self)
-        duplicates_to_delete = [f.value for f in right_fields()]
-        duplicates_to_delete.append(Field.IDU.value)
-        new_ppm.table = new_ppm.table.drop(columns=[Field.SUF.value]).drop_duplicates(subset=duplicates_to_delete)
+
+        # drop duplicates. Duplicates are same plot id, same person, and same right.
+        fields_defining_duplicates = [Field.IDU.value, Field.CODE_DROIT.value, Field.MAJIC.value]
+        new_ppm.table = new_ppm.table.drop_duplicates(subset=fields_defining_duplicates)
+
+        # temporary : use IDU as index
+        new_ppm.table = new_ppm.table.set_index(Field.IDU.value)
+        original_df = self.table.set_index(Field.IDU.value)
+
+        # aggregate SUF dependent info
+        suf_dependent_info = [Field.SUF.value, Field.CONTENANCE_SUF.value, Field.NAT_CAD.value]
+        for column in suf_dependent_info:
+            new_ppm.table[column] = [
+                ', '.join([
+                    str(v) or '' for v in set(original_df.loc[[i], column])
+                ])
+                for i in new_ppm.table.index
+            ]
+        # finally : drop index (keep IDU)
+        new_ppm.table = new_ppm.table.reset_index()
+
         return new_ppm
 
     def fetch(self, references: str | list[str]) -> None:
