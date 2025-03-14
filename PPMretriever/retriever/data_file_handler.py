@@ -77,6 +77,7 @@ class PPMDataFileHandler:
             RawField.SIREN.value: Field.SIREN.value,
             RawField.FORME_JUR_ABR.value: Field.FORME_JURIDIQUE_ABR.value,
             RawField.DENOMINATION.value: Field.DENOMINATION.value,
+            RawField.CONTENANCE_SUF.value: Field.CONTENANCE_SUF.value,
         }
         self.df = self.df.rename(columns=rename_mapping)
 

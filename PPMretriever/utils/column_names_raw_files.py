@@ -20,6 +20,7 @@ class RawField(Enum):
     SUF = "SUF"
     NAT_CAD = "Nature culture"
     CONTENANCE = "Contenance"
+    CONTENANCE_SUF = "Contenance.1"
     CODE_DROIT = "Code droit - par"
     MAJIC = "N° Majic - par"
     SIREN = "N° SIREN - par"

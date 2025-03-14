@@ -9,6 +9,8 @@ class Field(Enum):
     SUF = "SUF"
     NAT_CAD = "nature_cadastrale"
     CONTENANCE = "contenance"
+    CONTENANCE_SUF = "contenance_suf"
+
     # DROITS
     CODE_DROIT = "code_droit"
     LBL_DROIT = "droit"
@@ -24,6 +26,7 @@ def plot_fields() -> list[Enum]:
         Field.IDU,
         Field.SUF,
         Field.CONTENANCE,
+        Field.CONTENANCE_SUF,
         Field.ADRESSE,
         Field.NAT_CAD,
         Field.COMMUNE,
