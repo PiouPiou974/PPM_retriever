@@ -2,10 +2,11 @@ import copy
 import os.path
 from enum import EnumType
 import pandas as pd
+from pandas.core.indexes.api import union_indexes
 
 from PPMretriever.retriever.data_folder_handler import PPMDataFolderHandler
 from PPMretriever.retriever.data_file_handler import PPMDataFileHandler
-from PPMretriever.utils.dept_code import get_dept_code_from_reference_code
+from PPMretriever.utils.dept_code import get_dept_code_from_reference_code, ALL_DEPARTMENTS
 from PPMretriever.utils.field_names import Field, plot_fields, right_fields
 
 
@@ -48,6 +49,28 @@ class PPM:
         return new_ppm
 
     @property
+    def essential(self) -> 'PPM':
+        """
+        Only essentials values
+        :return: copy of the PPM object
+        """
+        new_ppm = copy.deepcopy(self)
+
+        fields_to_keep_and_order = [
+            Field.IDU.value,
+            Field.ADRESSE.value,
+            Field.CONTENANCE,
+            Field.LBL_DROIT.value,
+            Field.DENOMINATION.value,
+            Field.SIREN.value,
+        ]
+
+        fields_to_keep_and_order = [f for f in fields_to_keep_and_order if f in new_ppm.table.columns]
+        new_ppm.table = new_ppm.table[fields_to_keep_and_order].set_index(Field.IDU.value)
+
+        return new_ppm
+
+    @property
     def merged_suf(self) -> 'PPM':
         """
         Merges SUF and drop duplicates for the same IDU (plot id). Duplicates are : same right, same right holder, and same plot.
@@ -79,9 +102,25 @@ class PPM:
 
         return new_ppm
 
-    def fetch(self, references: str | list[str]) -> None:
+    def fetch_all(self, limit_to_department: list[str] | None = None) -> None:
+        if limit_to_department:
+            department_to_search = limit_to_department
+        else:
+            department_to_search = ALL_DEPARTMENTS
+
+        for dept in department_to_search:
+            files = self.ppm_data_folder.departmental_files(dept)
+            for f in files:
+                ppm_file = PPMDataFileHandler(f)
+                df = ppm_file.df
+                self.table = pd.concat([self.table, df], ignore_index=True)
+
+        self.table.drop_duplicates(inplace=True, ignore_index=True)
+
+    def fetch(self, references: str | list[str], limit_to_department: list[str] | None = None) -> None:
         """
         Fetch all PM plots for this set of references and add it to parent.
+        :param limit_to_department: départements to concentrate the search into
         :param references: Reference(s) for plots (IDU: 14 chars) or municipalities (5 chars) or dept (2-3 chars)
         :return: None
         """
@@ -98,7 +137,14 @@ class PPM:
             for dept in unique_depts
         }
 
-        for dept in unique_depts:
+        if limit_to_department:
+            department_to_search = limit_to_department
+        else:
+            department_to_search = ALL_DEPARTMENTS
+
+        depts = [dept for dept in unique_depts if dept in department_to_search]
+
+        for dept in depts:
             files = self.ppm_data_folder.departmental_files(dept)
             for f in files:
                 ppm_file = PPMDataFileHandler(f)
@@ -107,11 +153,27 @@ class PPM:
 
         self.table.drop_duplicates(inplace=True, ignore_index=True)
 
+    def get_from_owner(
+            self,
+            sirens: list[str] | None = None,
+            limit_to_department: list[str] | None = None) -> None:
+        if limit_to_department:
+            department_to_search = limit_to_department
+        else:
+            department_to_search = ALL_DEPARTMENTS
+
+        for dept in department_to_search:
+            files = self.ppm_data_folder.departmental_files(dept)
+            for f in files:
+                ppm_file = PPMDataFileHandler(f)
+                df = ppm_file.filter_by_siren(sirens)
+                self.table = pd.concat([self.table, df], ignore_index=True)
+
     def save_to_excel(self, folder_path: str, name: str | None = None) -> None:
         if not name:
             name = 'parcelles_personnes_morales'
         assert os.path.isdir(folder_path)
-        file_path = fr'{folder_path}{os.path.pathsep}{name}.xlsx'
+        file_path = fr'{folder_path}{os.path.sep}{name}.xlsx'
         self.table.to_excel(file_path, index=False)
 
     @staticmethod

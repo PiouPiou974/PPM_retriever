@@ -117,3 +117,12 @@ class PPMDataFileHandler:
             return_df = pd.concat([return_df, df_search])
 
         return return_df
+
+    def filter_by_siren(self, sirens: list[str]) -> pd.DataFrame:
+        return_df = pd.DataFrame(columns=[f.value for f in Field])
+
+        if len(sirens) != 0:
+            df_search = self.clean_table[self.df[Field.SIREN.value].isin(sirens)]
+            return_df = pd.concat([return_df, df_search])
+
+        return return_df
